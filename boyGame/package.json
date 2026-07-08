@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "start": "vite --port 5175",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-pixi-v8": "~4.3.7",
+    "pixi.js": "8.18.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.21.3",
+    "@babel/plugin-proposal-class-properties": "^7.10.1",
+    "vite": "^8.1.0"
+  },
+  "main": "/index.html"
+}
