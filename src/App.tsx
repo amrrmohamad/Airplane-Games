@@ -117,10 +117,15 @@ function App() {
         
         questionsToUse = data.questions.map((q: any) => {
           // Parse options if it's a JSON string
-          const options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+          let options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+          
+          // Normalize options to strings (handle both string[] and {text, imageUrl}[] formats)
+          const normalizedOptions = options.map((opt: any) => 
+            typeof opt === 'string' ? opt : opt.text
+          );
           
           // Shuffle options randomly
-          const shuffledOptions = [...options];
+          const shuffledOptions = [...normalizedOptions];
           for (let i = shuffledOptions.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
@@ -687,7 +692,9 @@ function App() {
                     <span className="target-badge">
                       {idx === 0 ? "أ" : idx === 1 ? "ب" : idx === 2 ? "ج" : "د"}
                     </span>
-                    <span className="target-text">{option}</span>
+                    <span className="target-text">
+                      {typeof option === 'string' ? option : option.text}
+                    </span>
                   </button>
                 );
               })}
