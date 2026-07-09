@@ -95,4 +95,4 @@ export class GameAPI {
   }
 }
 
-export const AIRPLANE_GAME_ID = 8;
+export const AIRPLANE_GAME_ID = 3;
