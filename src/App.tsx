@@ -48,7 +48,9 @@ function App() {
   const [useBackend, setUseBackend] = useState<boolean>(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [gameAPI, setGameAPI] = useState<GameAPI | null>(null);
-  const [answersToSubmit, setAnswersToSubmit] = useState<Array<{questionId: number, answer: string, startTime: number}>>([]);
+  const [answersToSubmit, setAnswersToSubmit] = useState<Array<{questionId: number, selectedAnswer: string, timeTaken: number}>>([]);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [gameRewards, setGameRewards] = useState<{stars: number, coins: number, experience: number, isNewReward: boolean} | null>(null);
   
   // Interaction State
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -175,6 +177,9 @@ function App() {
     setIsFlyingOver(false);
     setMovementDir('none');
     setGameState('playing');
+    setAnswersToSubmit([]); // Reset answers
+    setQuestionStartTime(Date.now()); // Start timer for first question
+    setGameRewards(null); // Reset rewards
     
     audio.setMute(isMuted);
     audio.playSuccess();
@@ -438,6 +443,19 @@ function App() {
     setIsCorrect(correct);
     setIsAnswerChecked(true);
 
+    // Record the answer for backend submission
+    const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
+    const currentQuestion = questions[currentQuestionIndex];
+    
+    setAnswersToSubmit(prev => [
+      ...prev,
+      {
+        questionId: currentQuestion.id,
+        selectedAnswer: currentQuestion.options[selectedAnswer!],
+        timeTaken
+      }
+    ]);
+
     if (correct) {
       const newCoins = coins + 1; // Earn 1 coin per correct answer
       setCoins(newCoins);
@@ -474,6 +492,7 @@ function App() {
     if (currentQuestionIndex + 1 < questions.length) {
       const nextIndex = currentQuestionIndex + 1;
       setCurrentQuestionIndex(nextIndex);
+      setQuestionStartTime(Date.now()); // Reset timer for next question
       
       setTimeout(() => {
         audio.speakText(questions[nextIndex].question, 'ar-SA');
@@ -493,7 +512,23 @@ function App() {
     
     if (useBackend && gameAPI && currentSessionId) {
       try {
-        await gameAPI.completeSession(currentSessionId);
+        // Step 1: Submit all answers to backend
+        if (answersToSubmit.length > 0) {
+          await gameAPI.submitAnswers(currentSessionId, answersToSubmit);
+        }
+        
+        // Step 2: Complete session and get rewards
+        const result = await gameAPI.completeSession(currentSessionId);
+        
+        // Step 3: Store rewards to show in game over screen
+        setGameRewards({
+          stars: result.stars,
+          coins: result.coins,
+          experience: result.experience,
+          isNewReward: result.isNewReward
+        });
+        
+        console.log('Game completed:', result);
       } catch (error) {
         console.error('Failed to complete session:', error);
       }
@@ -798,8 +833,59 @@ function App() {
                 <span className="result-badge">🏆✈️⭐</span>
                 <h2 className="result-title win">أنت بطل حقيقي!</h2>
                 <p className="result-desc">
-                  لقد أكملت جميع الأسئلة! حصلت على {coins} عملة ذهبية ونجمة واحدة! 🌟
+                  لقد أكملت جميع الأسئلة! 🌟
                 </p>
+                
+                {/* Show rewards from backend */}
+                {gameRewards && (
+                  <div className="rewards-section">
+                    {gameRewards.isNewReward ? (
+                      <>
+                        <h3 style={{ color: '#10b981', marginBottom: '15px' }}>🎉 مكافآتك الجديدة!</h3>
+                        <div className="result-stats">
+                          <div className="stat-item">
+                            <span className="stat-val">⭐ {gameRewards.stars}</span>
+                            <span className="stat-lbl">نجمة</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-val">🪙 {gameRewards.coins}</span>
+                            <span className="stat-lbl">عملة</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-val">✨ {gameRewards.experience}</span>
+                            <span className="stat-lbl">خبرة</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ 
+                          background: '#fef3c7', 
+                          border: '2px solid #fbbf24',
+                          borderRadius: '12px',
+                          padding: '15px',
+                          marginBottom: '15px'
+                        }}>
+                          <p style={{ color: '#92400e', margin: 0, fontSize: '16px' }}>
+                            ✅ لقد أكملت هذا الدرس من قبل!
+                            <br />
+                            المكافآت محفوظة في ملفك الشخصي
+                          </p>
+                        </div>
+                        <div className="result-stats">
+                          <div className="stat-item">
+                            <span className="stat-val">🪙 {coins}</span>
+                            <span className="stat-lbl">العملات المحلية</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-val">{questions.length}</span>
+                            <span className="stat-lbl">الأسئلة</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -808,19 +894,19 @@ function App() {
                 <p className="result-desc">
                   كبر الوحش كثيراً وأصاب طائرتك حتى تفحمت ونفذت محاولاتك. يمكنك الفوز في المرة القادمة!
                 </p>
+                
+                <div className="result-stats">
+                  <div className="stat-item">
+                    <span className="stat-val">🪙 {coins}</span>
+                    <span className="stat-lbl">العملات</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-val">{currentQuestionIndex + 1}/{questions.length}</span>
+                    <span className="stat-lbl">الأسئلة</span>
+                  </div>
+                </div>
               </>
             )}
-
-            <div className="result-stats">
-              <div className="stat-item">
-                <span className="stat-val">🪙 {coins}</span>
-                <span className="stat-lbl">العملات</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-val">{questions.length}</span>
-                <span className="stat-lbl">الأسئلة</span>
-              </div>
-            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
               <button className="retry-btn" onClick={() => startGame(selectedCategory)}>
